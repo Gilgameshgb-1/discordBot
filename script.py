@@ -1,6 +1,7 @@
 import os
 import random
 import discord
+import json
 
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -14,25 +15,80 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-@bot.command(name='test', help = 'Respons with a random line from the Backstreets boy "I want it that way."')
-async def nine_nine(ctx):
-    test = ['aint nothing but a heartache',
-                'aint nothing but a mistake',
-                'i dont ever wanna hear you say',
-                'i want it that way']
+@bot.event
+async def on_ready():
+    global gas_points
+    print(f'Logged in as {bot.user.name}')
+    
+    # Load data from file
+    gas_points = load_from_file('gas.json')
+    print('Gas points data loaded:', gas_points)
 
-    response = random.choice(test)
-    await ctx.send(response)
+def save_to_file(data, filename):
+    with open(filename, 'w') as file:
+        json.dump(data, file)
 
-@bot.command(name='rollDice', help='Simulates rolling dice.')
-async def roll(ctx, number_of_dice: int, number_of_sides: int):
-    dice = [
-        str(random.choice(range(1, number_of_sides + 1)))
-        for _ in range(number_of_dice)
-    ]
-    await ctx.send('The dice rolls are: ')
-    await ctx.send(', '.join(dice))
-    await ctx.send('Ako citas ovo, volim te. <3')
+def load_from_file(filename):
+    try:
+        with open(filename, 'r') as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return {}
+
+@bot.command()
+async def dodajGasPoene(ctx, user: discord.Member, amount: int):
+    if(amount < 0):
+        await ctx.send(f"Sta ti je DEBILU")
+        return
+    elif(amount == 0):
+        await ctx.send(f"BRAVO MAJSTORE 0 bodova si dodao")
+        return
+    if any(role.name == "dodavacGasa" for role in ctx.author.roles):
+        if str(user.id) in gas_points:
+            gas_points[str(user.id)] += amount
+        else:
+            gas_points[str(user.id)] = amount
+        
+        save_to_file(gas_points, 'gas.json')
+        await ctx.send(f"{amount} Dodan gas poen {user.name}. Ukupni gas: {gas_points[str(user.id)]}")
+    else:
+        await ctx.send("Ne mozes ti dodavat DEBILU.")
+
+@bot.command()
+async def skiniGasPoene(ctx, user: discord.Member, amount: int):
+    if(amount < 0):
+        await ctx.send(f"Sta ti je DEBILU")
+        return
+    elif(amount == 0):
+        await ctx.send(f"BRAVO MAJSTORE 0 bodova si oduzeo")
+        return
+    if any(role.name == "dodavacGasa" for role in ctx.author.roles):
+        #print(type(user.id))
+        #print(gas_points[str(user.id)])
+        if str(user.id) in gas_points:
+            gas_points[str(user.id)] -= amount
+        else:
+            gas_points[str(user.id)] = amount
+        
+        save_to_file(gas_points, 'gas.json')
+        await ctx.send(f"{amount} Skinut gas poen {user.name}. Ukupni gas: {gas_points[str(user.id)]}")
+    else:
+        await ctx.send("Ne mozes ti oduzimat DEBILU.")
+
+@bot.command()
+async def dajStanjeGasa(ctx):
+    report = "Gas Points Report:\n\n"
+    
+    for user_id, points in gas_points.items():
+        member = ctx.guild.get_member(int(user_id))
+        if member:
+            display_name = member.display_name.capitalize()
+            report += f"{display_name}: {points} poena\n"
+        else:
+            report += f"User ID {user_id}: {points} points (User not found in server)\n"
+    
+    await ctx.send(report)
+    
 
 @bot.command(name='createChannel')
 @commands.has_role('admin')
