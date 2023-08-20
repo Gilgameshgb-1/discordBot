@@ -2,6 +2,7 @@ import os
 import random
 import discord
 import json
+import asyncio
 
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -54,7 +55,7 @@ async def dodajGasPoene(ctx, user: discord.Member, amount: int):
     else:
         await ctx.send("Ne mozes ti dodavat DEBILU.")
 
-@bot.command()
+@bot.command(help="Komanda za skidanje gas poena")
 async def skiniGasPoene(ctx, user: discord.Member, amount: int):
     if(amount < 0):
         await ctx.send(f"Sta ti je DEBILU")
@@ -93,12 +94,87 @@ async def dajStanjeGasa(ctx):
                 display_name = "🥈 " + display_name
             elif index == 3:
                 display_name = "🥉 " + display_name
-            report += f"{index}. {display_name}: {points} points\n"
+            report += f"{index}. {display_name}: {points} poena\n"
         else:
             report += f"User ID {user_id}: {points} points (User not found in server)\n"
     
     await ctx.send(report)
     
+@bot.command()
+async def daVidimGas(ctx, user: discord.Member):
+    member = ctx.guild.get_member(int(user.id))
+    if(member):
+        await ctx.send(f"{ctx.guild.get_member(int(user.id)).display_name.capitalize()} Gas: {gas_points[str(user.id)]}")
+    else:
+        await ctx.send(f"Taj ti ne postoji brt")
+
+deduct_words = ["dislajt", "termin", "nba", "honkai", "hsr"] 
+
+@bot.event
+async def on_message(message):
+    if not message.author.bot:
+        for deduct_word in deduct_words:
+            if deduct_word in message.content.lower():
+                user_id = str(message.author.id)
+                if user_id in gas_points:
+                    gas_points[user_id] -= 1  
+                    save_to_file(gas_points, 'gas.json')
+                    await message.channel.send(f"Gas poen skinut {message.author.mention}-u. Trenutni Gas: {gas_points[user_id]}")
+                    break  
+                
+    await bot.process_commands(message) 
+
+@bot.command()
+async def zabranjeneRijeci(ctx):
+    deductions = "\n".join(deduct_words)
+    await ctx.send(f"Za ovo se skida gas: {deductions}")
+
+@bot.command()
+async def glasanjeZaGas(ctx, user: discord.Member, amount: int):
+    vote_message = f"Da li cemo mu dati gas?\n\n"
+    vote_message += "👍 Yes\n\n"
+    vote_message += "👎 No\n"
+
+    vote_embed = discord.Embed(description=vote_message, color=0x00ff00)
+    vote_embed.set_footer(text="Reagujte sa 👍 ili 👎 da biste glasali!")
+
+    vote_msg = await ctx.send(embed=vote_embed)
+    await vote_msg.add_reaction("👍")
+    await vote_msg.add_reaction("👎")
+
+    await asyncio.sleep(5) 
+
+    thumbs_up_count = 0
+    thumbs_down_count = 0
+
+    message = await ctx.fetch_message(vote_msg.id)
+    for reaction in message.reactions:
+        if reaction.emoji == "👍":
+            thumbs_up_count = reaction.count - 1
+        elif reaction.emoji == "👎":
+            thumbs_down_count = reaction.count - 1
+
+    if thumbs_up_count > thumbs_down_count:
+        await ctx.send("Dodan gas!")
+        gas_points[str(user.id)] += amount
+        save_to_file(gas_points, 'gas.json')
+    elif thumbs_down_count > thumbs_up_count:
+        await ctx.send("Nema gasa!")
+    else:
+        await ctx.send("Ne mozete da se DOGOVORITE!")
+
+
+@bot.event
+async def on_reaction_add(reaction, user):
+    if user != bot.user:
+        message = reaction.message
+        if message.author == bot.user and message.embeds:
+            embed = message.embeds[0]
+            if "Reagujte sa 👍 ili 👎 da biste glasali!" in embed.footer.text:
+                if reaction.emoji in ["👍", "👎"]:
+                    # Register the vote
+                    vote_option = "Da" if reaction.emoji == "👍" else "Ne"
+                    print(f"User {user} voted: {vote_option}")
 
 @bot.command(name='createChannel')
 @commands.has_role('admin')
