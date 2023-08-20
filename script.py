@@ -77,13 +77,23 @@ async def skiniGasPoene(ctx, user: discord.Member, amount: int):
 
 @bot.command()
 async def dajStanjeGasa(ctx):
-    report = "Gas Points Report:\n\n"
-    
-    for user_id, points in gas_points.items():
+    report = "Gas leaderboard:\n\n"
+
+    sorted_gas_points = dict(sorted(gas_points.items(), key=lambda item: item[1], reverse=True))
+    index = 0
+
+    for user_id, points in sorted_gas_points.items():
+        index += 1
         member = ctx.guild.get_member(int(user_id))
         if member:
             display_name = member.display_name.capitalize()
-            report += f"{display_name}: {points} poena\n"
+            if index == 1:
+                display_name = "🥇 " + display_name
+            elif index == 2:
+                display_name = "🥈 " + display_name
+            elif index == 3:
+                display_name = "🥉 " + display_name
+            report += f"{index}. {display_name}: {points} points\n"
         else:
             report += f"User ID {user_id}: {points} points (User not found in server)\n"
     
